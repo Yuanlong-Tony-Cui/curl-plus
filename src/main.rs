@@ -28,13 +28,13 @@ async fn main() {
         process::exit(1);
     }
 
-    // Perform IP and port validation before parsing the URL
+    // Validate the URL format:
     if let Err(err) = validate_ip_and_port(&args.url) {
         print_error(&args.url, &err);
         process::exit(1);
     }
 
-    // Now parse the URL using the `url` crate
+    // Parse the URL:
     let url = match url::Url::parse(&args.url) {
         Ok(u) => u,
         Err(_) => {
@@ -60,27 +60,78 @@ async fn main() {
     }
 }
 
-// Function to validate IP address and port in the URL string
+/*
+    A valid hostname should:
+    - Only contain alphanumeric characters, hyphens, or dots
+    - Not start or end with a hyphen or dot
+    - Have each labels (each part separated by dots) between 1 and 63 characters
+    - Be no more than 253 characters in total
+*/
+fn is_valid_hostname(hostname: &str) -> bool {
+    // Hostname must be non-empty and no more than 253 characters
+    if hostname.is_empty() || hostname.len() > 253 {
+        return false;
+    }
+
+    // Split the hostname into labels and validate each
+    hostname.split('.').all(|label| {
+        // Each label must be 1-63 characters long
+        if label.len() < 1 || label.len() > 63 {
+            return false;
+        }
+
+        // Each label must contain only alphanumeric characters or hyphens
+        if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return false;
+        }
+
+        // Labels cannot start or end with a hyphen
+        if label.starts_with('-') || label.ends_with('-') {
+            return false;
+        }
+
+        true
+    })
+}
+
+/*
+    Validate URL:
+*/
 fn validate_ip_and_port(url: &str) -> Result<(), String> {
-    // Use regex to extract the host (IP) and optional port from the URL string
+    // Use regex to extract the host and port (optional) from the URL:
+    /*
+        - `https?://` matches both "http://" and "https://"
+        - `(\[.*?\]|[^:/]+)` matches the host portion of the URL
+        - `(?::(\d+))?` matches the port portion of the URL
+    */
     let re = Regex::new(r"https?://(\[.*?\]|[^:/]+)(?::(\d+))?").unwrap();
     if let Some(caps) = re.captures(url) {
-        let host = &caps[1];
+        let host = &caps[1]; // strips the protocol and port
+
+        let ipv6_regex = Regex::new(r"^\[([a-fA-F0-9:.%]+)\]$").unwrap();
+        let ipv4_regex = Regex::new(r"^\d{1,3}(\.\d{1,3}){3}$").unwrap();
         
-        // Check if the host is a valid IPv4 or IPv6 address
-        if host.starts_with('[') && host.ends_with(']') {
-            // This is an IPv6 address; strip the brackets and validate
+        if ipv6_regex.is_match(host) {
+            // Treat it as an IPv6 address:
             let ipv6 = &host[1..host.len() - 1];
             if ipv6.parse::<Ipv6Addr>().is_err() {
                 return Err("The URL contains an invalid IPv6 address.".to_string());
             }
-        } else if host.parse::<Ipv4Addr>().is_err() {
-            return Err("The URL contains an invalid IPv4 address.".to_string());
+        } else if ipv4_regex.is_match(host) {
+            // Treat it as an IPv4 address:
+            if host.parse::<Ipv4Addr>().is_err() {
+                return Err("The URL contains an invalid IPv4 address.".to_string());
+            }
+        } else {
+            // Treat it as a hostname:
+            if !is_valid_hostname(host) {
+                return Err("The URL contains an invalid hostname.".to_string());
+            }
         }
 
-        // Check if the port number (if present) is within the valid range
+        // Check if the port number (if present) is within the valid range:
         if let Some(port_str) = caps.get(2) {
-            // Try to parse the port string to a u16 and handle any parsing errors
+            // Try to parse the port string to a u16 (0 ~ 65535):
             if let Err(_) = port_str.as_str().parse::<u16>() {
                 return Err("The URL contains an invalid port number.".to_string());
             }
