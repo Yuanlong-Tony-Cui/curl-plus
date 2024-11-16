@@ -22,7 +22,7 @@ struct Cli {
 async fn main() {
     let args = Cli::from_args();
 
-    // Check for a valid protocol in the URL before parsing
+    // Validate the base protocol:
     if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
         print_error(&args.url, "The URL does not have a valid base protocol.");
         process::exit(1);
@@ -169,7 +169,7 @@ async fn handle_post_json(client: &Client, url: &url::Url, json_data: &str) {
 // Print the response body
 async fn print_response(response: Response) {
     if response.status() != reqwest::StatusCode::OK {
-        eprintln!("Error: Request failed with status code: {}.", response.status());
+        eprintln!("Error: Request failed with status code: {}.", response.status().as_u16());
         process::exit(1);
     }
 
