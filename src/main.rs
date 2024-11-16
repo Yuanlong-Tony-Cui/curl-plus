@@ -61,40 +61,6 @@ async fn main() {
 }
 
 /*
-    A valid hostname should:
-    - Only contain alphanumeric characters, hyphens, or dots
-    - Not start or end with a hyphen or dot
-    - Have each labels (each part separated by dots) between 1 and 63 characters
-    - Be no more than 253 characters in total
-*/
-fn is_valid_hostname(hostname: &str) -> bool {
-    // Hostname must be non-empty and no more than 253 characters
-    if hostname.is_empty() || hostname.len() > 253 {
-        return false;
-    }
-
-    // Split the hostname into labels and validate each
-    hostname.split('.').all(|label| {
-        // Each label must be 1-63 characters long
-        if label.len() < 1 || label.len() > 63 {
-            return false;
-        }
-
-        // Each label must contain only alphanumeric characters or hyphens
-        if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return false;
-        }
-
-        // Labels cannot start or end with a hyphen
-        if label.starts_with('-') || label.ends_with('-') {
-            return false;
-        }
-
-        true
-    })
-}
-
-/*
     Validate URL:
 */
 fn validate_ip_and_port(url: &str) -> Result<(), String> {
@@ -111,6 +77,7 @@ fn validate_ip_and_port(url: &str) -> Result<(), String> {
         let ipv6_regex = Regex::new(r"^\[([a-fA-F0-9:.%]+)\]$").unwrap();
         let ipv4_regex = Regex::new(r"^\d{1,3}(\.\d{1,3}){3}$").unwrap();
         
+        // Validate as an IPv4 or IPv6 address:
         if ipv6_regex.is_match(host) {
             // Treat it as an IPv6 address:
             let ipv6 = &host[1..host.len() - 1];
@@ -122,14 +89,9 @@ fn validate_ip_and_port(url: &str) -> Result<(), String> {
             if host.parse::<Ipv4Addr>().is_err() {
                 return Err("The URL contains an invalid IPv4 address.".to_string());
             }
-        } else {
-            // Treat it as a hostname:
-            if !is_valid_hostname(host) {
-                return Err("The URL contains an invalid hostname.".to_string());
-            }
         }
 
-        // Check if the port number (if present) is within the valid range:
+        // Validate the port number (if present):
         if let Some(port_str) = caps.get(2) {
             // Try to parse the port string to a u16 (0 ~ 65535):
             if let Err(_) = port_str.as_str().parse::<u16>() {
