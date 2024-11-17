@@ -14,7 +14,7 @@ struct Cli {
     method: Option<String>,
     #[structopt(short = "d", long)]
     data: Option<String>,
-    #[structopt(long = "json")]
+    #[structopt(long = "json", conflicts_with("data"), conflicts_with("method"))]
     json_data: Option<String>,
 }
 
@@ -46,18 +46,21 @@ async fn main() {
 
     let client = Client::new();
 
-    match args.method.as_deref() {
-        Some("POST") => {
-            if let Some(json_data) = &args.json_data {
-                handle_post_json(&client, &url, json_data).await;
-            } else if let Some(data) = &args.data {
-                handle_post_data(&client, &url, data).await;
-            } else {
-                eprintln!("Error: POST method requires data or JSON data.");
-                process::exit(1);
-            }
+    if let Some(json_data) = &args.json_data {
+        // If the `--json` flag is used, perform a POST with JSON data:
+        handle_post_json(&client, &url, json_data).await;
+    } else if args.method.as_deref() == Some("POST") {
+        // If `-X POST` is used, perform a POST request with key-value-pair data:
+        // TODO: Simplify this code
+        if let Some(data) = &args.data {
+            handle_post_data(&client, &url, data).await;
+        } else {
+            eprintln!("Error: POST method requires data.");
+            process::exit(1);
         }
-        _ => handle_get(&client, &url).await,
+    } else {
+        // Use GET by default:
+        handle_get(&client, &url).await;
     }
 }
 
@@ -147,14 +150,12 @@ async fn handle_post_json(client: &Client, url: &url::Url, json_data: &str) {
     println!("Method: POST");
     println!("JSON: {}", json_data);
 
-    let json: Value = match serde_json::from_str(json_data) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("Invalid JSON: {}", e);
-            process::exit(1);
-        }
-    };
+    // Validate the JSON data using `serde_json`:
+    let json: Value = serde_json::from_str(
+        json_data
+    ).expect("Invalid JSON"); // uses `expect` to print the panic output
 
+    // Send the POST request with the JSON data:
     match client
         .post(url.as_str())
         .header("Content-Type", "application/json")
