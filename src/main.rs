@@ -20,7 +20,8 @@ struct Cli {
 
 #[tokio::main]
 async fn main() {
-    let args = Cli::from_args();
+    // Collect input from CLI:
+    let args = Cli::from_args(); // uses `StructOpt` to collect target CLI arguments
 
     // Validate the base protocol:
     if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
@@ -168,7 +169,8 @@ async fn handle_post_json(client: &Client, url: &url::Url, json_data: &str) {
 
 // Print the response body
 async fn print_response(response: Response) {
-    if response.status() != reqwest::StatusCode::OK {
+    // Print status code on failed requests:
+    if !response.status().is_success() {
         eprintln!("Error: Request failed with status code: {}.", response.status().as_u16());
         process::exit(1);
     }
