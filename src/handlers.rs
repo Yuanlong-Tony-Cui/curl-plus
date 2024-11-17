@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::process;
 
-// Handle GET request
+// Handle GET request:
 pub async fn handle_get(client: &Client, url: &url::Url) {
     println!("Requesting URL: {}", url);
     println!("Method: GET");
@@ -14,7 +14,7 @@ pub async fn handle_get(client: &Client, url: &url::Url) {
     }
 }
 
-// Handle POST request with form data
+// Handle POST request with form data:
 pub async fn handle_post_data(client: &Client, url: &url::Url, data: &str) {
     println!("Requesting URL: {}", url);
     println!("Method: POST");
@@ -34,7 +34,7 @@ pub async fn handle_post_data(client: &Client, url: &url::Url, data: &str) {
     }
 }
 
-// Handle POST request with JSON data
+// Handle POST request with JSON data:
 pub async fn handle_post_json(client: &Client, url: &url::Url, json_data: &str) {
     println!("Requesting URL: {}", url);
     println!("Method: POST");
@@ -58,7 +58,7 @@ pub async fn handle_post_json(client: &Client, url: &url::Url, json_data: &str) 
     }
 }
 
-// Print the response body
+// Format and print the response body:
 async fn print_response(response: Response) {
     // Print status code on failed requests:
     if !response.status().is_success() {
@@ -79,7 +79,7 @@ async fn print_response(response: Response) {
     }
 }
 
-// Handle request errors
+// Handle request errors:
 fn handle_request_error(err: reqwest::Error) {
     if err.is_connect() {
         eprintln!("Error: Unable to connect to the server. Perhaps the network is offline or the server hostname cannot be resolved.");

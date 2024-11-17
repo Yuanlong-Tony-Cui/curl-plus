@@ -1,5 +1,6 @@
 use structopt::StructOpt;
 
+// Use `StructOpt` to collect target CLI arguments by their flags:
 #[derive(StructOpt, Debug)]
 pub struct Cli {
     pub url: String,
@@ -13,6 +14,6 @@ pub struct Cli {
 
 impl Cli {
     pub fn parse_args() -> Self {
-        StructOpt::from_args() // uses `StructOpt` to collect target CLI arguments
+        StructOpt::from_args()
     }
 }

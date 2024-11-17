@@ -1,9 +1,7 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 use regex::Regex;
 
-/*
-    Validate URL:
-*/
+// Validate an URL on its host address (IPv4/IPv6) and port number:
 pub fn validate_ip_and_port(url: &str) -> Result<(), String> {
     // Use regex to extract the host and port (optional) from the URL:
     /*

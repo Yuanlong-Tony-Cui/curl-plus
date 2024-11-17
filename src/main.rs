@@ -8,6 +8,7 @@ use handlers::{handle_get, handle_post_data, handle_post_json};
 use reqwest::Client;
 use std::process;
 
+// Print error message for GET requests:
 fn print_error(url: &str, message: &str) {
     println!("Requesting URL: {}", url);
     println!("Method: GET");
@@ -46,7 +47,7 @@ async fn main() {
         // If the `--json` flag is used, perform a POST with JSON data:
         handle_post_json(&client, &url, json_data).await;
     } else if args.method.as_deref() == Some("POST") {
-        // If `-X POST` is used, perform a POST request with key-value-pair data:
+        // If `-X POST` is used, perform a POST request with form data:
         if let Some(data) = &args.data {
             handle_post_data(&client, &url, data).await;
         } else {
