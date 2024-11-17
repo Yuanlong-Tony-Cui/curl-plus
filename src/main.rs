@@ -1,27 +1,23 @@
-use reqwest::{Client, Response};
-use serde_json::Value;
-use std::collections::BTreeMap;
-use std::process;
-use structopt::StructOpt;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use regex::Regex;
+mod cli;
+mod validators;
+mod handlers;
 
-/// Define CLI arguments
-#[derive(StructOpt, Debug)]
-struct Cli {
-    url: String,
-    #[structopt(short = "X", long)]
-    method: Option<String>,
-    #[structopt(short = "d", long)]
-    data: Option<String>,
-    #[structopt(long = "json", conflicts_with("data"), conflicts_with("method"))]
-    json_data: Option<String>,
+use cli::Cli;
+use validators::validate_ip_and_port;
+use handlers::{handle_get, handle_post_data, handle_post_json};
+use reqwest::Client;
+use std::process;
+
+fn print_error(url: &str, message: &str) {
+    println!("Requesting URL: {}", url);
+    println!("Method: GET");
+    println!("Error: {}", message);
 }
 
 #[tokio::main]
 async fn main() {
     // Collect input from CLI:
-    let args = Cli::from_args(); // uses `StructOpt` to collect target CLI arguments
+    let args = Cli::parse_args();
 
     // Validate the base protocol:
     if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
@@ -51,7 +47,6 @@ async fn main() {
         handle_post_json(&client, &url, json_data).await;
     } else if args.method.as_deref() == Some("POST") {
         // If `-X POST` is used, perform a POST request with key-value-pair data:
-        // TODO: Simplify this code
         if let Some(data) = &args.data {
             handle_post_data(&client, &url, data).await;
         } else {
@@ -62,137 +57,4 @@ async fn main() {
         // Use GET by default:
         handle_get(&client, &url).await;
     }
-}
-
-/*
-    Validate URL:
-*/
-fn validate_ip_and_port(url: &str) -> Result<(), String> {
-    // Use regex to extract the host and port (optional) from the URL:
-    /*
-        - `https?://` matches both "http://" and "https://"
-        - `(\[.*?\]|[^:/]+)` matches the host portion of the URL
-        - `(?::(\d+))?` matches the port portion of the URL
-    */
-    let re = Regex::new(r"https?://(\[.*?\]|[^:/]+)(?::(\d+))?").unwrap();
-    if let Some(caps) = re.captures(url) {
-        let host = &caps[1]; // strips the protocol and port
-
-        let ipv6_regex = Regex::new(r"^\[([a-fA-F0-9:.%]+)\]$").unwrap();
-        let ipv4_regex = Regex::new(r"^\d{1,3}(\.\d{1,3}){3}$").unwrap();
-        
-        // Validate as an IPv4 or IPv6 address:
-        if ipv6_regex.is_match(host) {
-            // Treat it as an IPv6 address:
-            let ipv6 = &host[1..host.len() - 1];
-            if ipv6.parse::<Ipv6Addr>().is_err() {
-                return Err("The URL contains an invalid IPv6 address.".to_string());
-            }
-        } else if ipv4_regex.is_match(host) {
-            // Treat it as an IPv4 address:
-            if host.parse::<Ipv4Addr>().is_err() {
-                return Err("The URL contains an invalid IPv4 address.".to_string());
-            }
-        }
-
-        // Validate the port number (if present):
-        if let Some(port_str) = caps.get(2) {
-            // Try to parse the port string to a u16 (0 ~ 65535):
-            if let Err(_) = port_str.as_str().parse::<u16>() {
-                return Err("The URL contains an invalid port number.".to_string());
-            }
-        }
-    }
-    Ok(())
-}
-
-// Helper function to print error message in the specified format
-fn print_error(url: &str, message: &str) {
-    println!("Requesting URL: {}", url);
-    println!("Method: GET");
-    println!("Error: {}", message);
-}
-
-// Handle GET request
-async fn handle_get(client: &Client, url: &url::Url) {
-    println!("Requesting URL: {}", url);
-    println!("Method: GET");
-
-    match client.get(url.as_str()).send().await {
-        Ok(response) => print_response(response).await,
-        Err(err) => handle_request_error(err),
-    }
-}
-
-// Handle POST request with form data
-async fn handle_post_data(client: &Client, url: &url::Url, data: &str) {
-    println!("Requesting URL: {}", url);
-    println!("Method: POST");
-    println!("Data: {}", data);
-
-    let form_data: Vec<(&str, &str)> = data
-        .split('&')
-        .map(|pair| {
-            let mut kv = pair.split('=');
-            (kv.next().unwrap_or(""), kv.next().unwrap_or(""))
-        })
-        .collect();
-
-    match client.post(url.as_str()).form(&form_data).send().await {
-        Ok(response) => print_response(response).await,
-        Err(err) => handle_request_error(err),
-    }
-}
-
-// Handle POST request with JSON data
-async fn handle_post_json(client: &Client, url: &url::Url, json_data: &str) {
-    println!("Requesting URL: {}", url);
-    println!("Method: POST");
-    println!("JSON: {}", json_data);
-
-    // Validate the JSON data using `serde_json`:
-    let json: Value = serde_json::from_str(
-        json_data
-    ).expect("Invalid JSON"); // uses `expect` to print the panic output
-
-    // Send the POST request with the JSON data:
-    match client
-        .post(url.as_str())
-        .header("Content-Type", "application/json")
-        .json(&json)
-        .send()
-        .await
-    {
-        Ok(response) => print_response(response).await,
-        Err(err) => handle_request_error(err),
-    }
-}
-
-// Print the response body
-async fn print_response(response: Response) {
-    // Print status code on failed requests:
-    if !response.status().is_success() {
-        eprintln!("Error: Request failed with status code: {}.", response.status().as_u16());
-        process::exit(1);
-    }
-
-    let body = response.text().await.unwrap_or_default();
-    if let Ok(json) = serde_json::from_str::<Value>(&body) {
-        let sorted_json: BTreeMap<_, _> = json.as_object().unwrap().clone().into_iter().collect();
-        println!("Response body (JSON with sorted keys):");
-        println!("{}", serde_json::to_string_pretty(&sorted_json).unwrap());
-    } else {
-        println!("Response body:");
-        println!("{}", body);
-    }
-}
-
-// Handle request errors
-fn handle_request_error(err: reqwest::Error) {
-    if err.is_connect() {
-        eprintln!("Error: Unable to connect to the server. Perhaps the network is offline or the server hostname cannot be resolved.");
-    } else {
-        eprintln!("Error: Request failed. {}", err);
-    }
-    process::exit(1);
 }
